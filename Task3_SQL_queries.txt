@@ -1,0 +1,79 @@
+/* 0. Verify table and columns */
+PRAGMA table_info(customers);
+
+/* 1. Simple SELECT: show sample rows */
+SELECT *
+FROM customers
+LIMIT 10;
+
+/* 2. SELECT with WHERE and ORDER BY
+   Find customers from the city 'São Paulo' (example), ordered by zip */
+SELECT customer_id, customer_unique_id, customer_city, customer_state, customer_zip_code_prefix
+FROM customers
+WHERE customer_city = 'Sao Paulo'        -- change spelling/case to match your CSV
+ORDER BY customer_zip_code_prefix
+LIMIT 50;
+
+/* 3. Aggregation with GROUP BY: Customers per state */
+SELECT customer_state, COUNT(*) AS num_customers
+FROM customers
+GROUP BY customer_state
+ORDER BY num_customers DESC;
+
+/* 4. Aggregation with AVG, MIN, MAX on zip code prefix (numeric summary) */
+SELECT
+  COUNT(*) AS total_customers,
+  MIN(customer_zip_code_prefix) AS min_zip_prefix,
+  MAX(customer_zip_code_prefix) AS max_zip_prefix,
+  ROUND(AVG(customer_zip_code_prefix),2) AS avg_zip_prefix
+FROM customers;
+
+/* 5. Find duplicate customer_unique_id (customers with same unique id) */
+SELECT customer_unique_id, COUNT(*) AS occurrences
+FROM customers
+GROUP BY customer_unique_id
+HAVING occurrences > 1
+ORDER BY occurrences DESC;
+
+/* 6. Subquery example: customers whose zip > overall average zip prefix */
+SELECT customer_id, customer_unique_id, customer_zip_code_prefix, customer_city, customer_state
+FROM customers
+WHERE customer_zip_code_prefix > (
+    SELECT AVG(customer_zip_code_prefix) FROM customers
+)
+ORDER BY customer_zip_code_prefix DESC
+LIMIT 50;
+
+/* 7. Create a view for quick analysis: customers_by_state */
+DROP VIEW IF EXISTS customers_by_state;
+CREATE VIEW customers_by_state AS
+SELECT customer_state, COUNT(*) AS num_customers, COUNT(DISTINCT customer_unique_id) AS unique_customers
+FROM customers
+GROUP BY customer_state;
+
+/* Query the view */
+SELECT * FROM customers_by_state ORDER BY num_customers DESC;
+
+/* 8. Create an index to speed up queries filtering by state and zip */
+CREATE INDEX IF NOT EXISTS idx_customers_state ON customers(customer_state);
+CREATE INDEX IF NOT EXISTS idx_customers_zip ON customers(customer_zip_code_prefix);
+
+/* 9. Example query that uses the index (filter then group): top cities in a particular state */
+SELECT customer_city, COUNT(*) AS city_count
+FROM customers
+WHERE customer_state = 'SP'   -- change to state code present in your CSV
+GROUP BY customer_city
+ORDER BY city_count DESC
+LIMIT 20;
+
+/* 10. Save query outputs into a temporary table (useful for later joins if you import other tables) */
+DROP TABLE IF EXISTS top_states;
+CREATE TABLE top_states AS
+SELECT customer_state, COUNT(*) AS num_customers
+FROM customers
+GROUP BY customer_state
+ORDER BY num_customers DESC
+LIMIT 10;
+
+/* 11. Show the temp table */
+SELECT * FROM top_states;
